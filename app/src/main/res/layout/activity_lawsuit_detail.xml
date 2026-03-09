@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/detailRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Title"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:paddingBottom="12dp" />
+
+    <!-- This will show filters + URL.
+         autoLink makes the URL clickable inside the text -->
+    <TextView
+        android:id="@+id/detailText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:autoLink="web"
+        android:linksClickable="true"
+        android:textIsSelectable="true"
+        android:text="Details" />
+
+    <Button
+        android:id="@+id/openSourceBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open source link"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
