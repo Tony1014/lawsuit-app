@@ -18,6 +18,7 @@ class LawsuitAdapter(private val onTitleClick: (Lawsuit) -> Unit) : RecyclerView
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val tvTitle: TextView = itemView.findViewById(R.id.tvTitle)
         val tvMeta: TextView = itemView.findViewById(R.id.tvMeta)
+        val tvCaseStatus: TextView = itemView.findViewById(R.id.tvCaseStatus)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -31,6 +32,7 @@ class LawsuitAdapter(private val onTitleClick: (Lawsuit) -> Unit) : RecyclerView
         val l = items[position]
         holder.tvTitle.text = l.title
         holder.tvMeta.text = "claim_required=${l.claim_required} • proof_required=${l.proof_required} • compensation_type=${l.compensation_type} • difficulty=${l.difficulty}"
+        holder.tvCaseStatus.text = l.case_status
         // Click title -> open detail
         holder.tvTitle.setOnClickListener {
             onTitleClick(l)

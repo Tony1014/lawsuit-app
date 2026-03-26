@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra("compensation_type", l.compensation_type)
                 putExtra("proof_required", l.proof_required)
                 putExtra("difficulty", l.difficulty)
+                putExtra("case_status", l.case_status)
                 putExtra("source_url", l.source_url)
             }
             startActivity(intent)

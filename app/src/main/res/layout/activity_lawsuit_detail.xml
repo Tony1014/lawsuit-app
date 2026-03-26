@@ -26,6 +26,12 @@
         android:textIsSelectable="true"
         android:text="Details" />
 
+    <TextView
+        android:id="@+id/tvDetailCaseStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Case Status" />
+
     <Button
         android:id="@+id/openSourceBtn"
         android:layout_width="match_parent"

@@ -7,5 +7,6 @@ data class Lawsuit(
     val proof_required: Boolean,
     val difficulty: String,
     val compensation_type: String,
+    val case_status: String,
     val source_url: String
 )
