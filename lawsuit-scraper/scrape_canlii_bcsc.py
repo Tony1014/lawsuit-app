@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +14,9 @@ HEADERS = {
     "Accept-Language": "en-CA,en;q=0.9",
 }
 
+def normalize_url(url: str) -> str:
+    return url.split("?")[0].rstrip("/") + "/"
+
 # --- Classification helpers (simple keyword rules, no PDF parsing yet) ---
 
 def compute_difficulty(claim_required, proof_required: bool) -> str:
@@ -23,7 +26,7 @@ def compute_difficulty(claim_required, proof_required: bool) -> str:
         return "easy"
     if (not claim_required) and proof_required:
         return "medium"
-    return "hard"
+    return "hard"  
 
 
 def infer_claim_required(case_soup: BeautifulSoup, text: str):
@@ -41,7 +44,7 @@ def infer_claim_required(case_soup: BeautifulSoup, text: str):
         "do not have to complete any claim form",
         "do not have to submit a claim",
         "you don’t have to do anything",
-        "you don't have to do anything",
+        "you do not have to do anything",
     ]
     if any(p in t for p in no_claim_phrases):
         return False
@@ -91,20 +94,33 @@ def infer_compensation_type(text: str) -> str:
     return "unknown"
 
 
-def upsert_lawsuit(cur, title: str, source_url: str, claim_required, proof_required: bool, difficulty: str, compensation_type: str):
+def infer_case_status(text: str):
+    """Return 'in progress' or 'completed' when the status is visible in card/page text."""
+    t = text.lower()
+
+    if "in progress" in t:
+        return "In Progress"
+    if "completed" in t or "complete" in t:
+        return "Completed"
+
+    return None
+
+
+def upsert_lawsuit(cur, title: str, source_url: str, claim_required, proof_required: bool, difficulty: str, compensation_type: str, case_status):
     cur.execute(
         """
-        INSERT INTO lawsuits (title, source_url, claim_required, proof_required, difficulty, compensation_type)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO lawsuits (title, source_url, claim_required, proof_required, difficulty, compensation_type, case_status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_url) DO UPDATE SET
           title = EXCLUDED.title,
           claim_required = EXCLUDED.claim_required,
           proof_required = EXCLUDED.proof_required,
           difficulty = EXCLUDED.difficulty,
           compensation_type = EXCLUDED.compensation_type,
+          case_status = EXCLUDED.case_status,
           scraped_at = NOW()
         """,
-        (title, source_url, claim_required, proof_required, difficulty, compensation_type),
+        (title, source_url, claim_required, proof_required, difficulty, compensation_type, case_status),
     )
 
 def connect_db():
@@ -117,48 +133,91 @@ def connect_db():
     return conn
 
 def main():
-    print(f"Fetching: {START_URL}")
-    resp = requests.get(START_URL, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
+    print(f"Fetching directory: {START_URL}")
+    
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    # Build directory pages directly instead of trying to discover pagination buttons.
+    # Proactio serves page 2, page 3, etc. at ?_paged=N, but those buttons are not
+    # reliably present in the HTML returned to requests.
+    directory_pages = []
+    page_number = 1
 
-    # Collect class action case links from the directory.
-    # The directory page contains many links to individual case pages.
-    links = []
-    for a in soup.select("a[href]"):
-        href = (a.get("href") or "").strip()
-        if not href:
-            continue
+    while True:
+        if page_number == 1:
+            page_url = START_URL
+        else:
+            page_url = f"{START_URL}?_paged={page_number}"
 
-        full = urljoin(START_URL, href)
+        print(f"Checking directory page: {page_url}")
+        page_resp = requests.get(page_url, headers=HEADERS, timeout=30)
+        page_resp.raise_for_status()
+        page_soup = BeautifulSoup(page_resp.text, "html.parser")
 
-        # Keep only /en/class-action/<slug>/ case pages (skip the directory itself)
-        if full.startswith("https://proactio.ca/en/class-action/") and full != START_URL:
-            title = a.get_text(" ", strip=True)
+        page_links = []
+        for a in page_soup.select("a[href]"):
+            href = (a.get("href") or "").strip()
+            if not href:
+                continue
+
+            full = urljoin(page_url, href)
+            full_norm = normalize_url(full)
+
+            # Keep only actual case pages, not the directory pages themselves.
+            if not full_norm.startswith("https://proactio.ca/en/class-action/"):
+                continue
+            if full_norm == normalize_url(START_URL):
+                continue
+
+            parsed = urlparse(full)
+            qs = parse_qs(parsed.query)
+            if parsed.path.rstrip("/") == "/en/class-action" and "_paged" in qs:
+                continue
+
+            title_el = a.select_one(".item__title")
+            title = title_el.get_text(" ", strip=True) if title_el else ""
+
+            state_el = a.select_one(".item__state")
+            state_text = state_el.get_text(" ", strip=True) if state_el else ""
+            case_status = infer_case_status(state_text)
+
             if title:
-                links.append((title, full))
+                page_links.append((title, full_norm, case_status))
+
+        if not page_links:
+            break
+
+        directory_pages.append((page_url, page_soup, page_links))
+        page_number += 1
+        time.sleep(1.0)
+
+    print(f"Found {len(directory_pages)} directory pages")
+
+    # Collect case links from every directory page already fetched above
+    links = []
+    for page_index, (page_url, _page_soup, page_links) in enumerate(directory_pages, start=1):
+        print(f"[{page_index}/{len(directory_pages)}] Reading directory page: {page_url}")
+        links.extend(page_links)
 
     # De-duplicate while keeping order
     seen = set()
     unique = []
-    for t, u in links:
-        # Normalize by stripping querystring and trailing slashes
-        u_norm = u.split("?")[0].rstrip("/") + "/"
+    for t, u, s in links:
+        u_norm = normalize_url(u)
         if u_norm not in seen:
             seen.add(u_norm)
-            unique.append((t, u_norm))
+            unique.append((t, u_norm, s))
 
-    print(f"Found {len(unique)} case links on this page")
+    print(f"Found {len(unique)} case links across all directory pages")
     time.sleep(1.0)
 
     conn = connect_db()
     try:
         with conn.cursor() as cur:
-            max_items = 20
-            for i, (dir_title, url) in enumerate(unique[:max_items], start=1):
+            max_items = 30
+            total = min(len(unique), max_items)
+            for i, (dir_title, url, dir_case_status) in enumerate(unique[:max_items], start=1):
                 try:
-                    print(f"[{i}/{max_items}] Fetching case: {url}")
+                    print(f"[{i}/{total}] Fetching case: {url}")
                     case_resp = requests.get(url, headers=HEADERS, timeout=30)
                     case_resp.raise_for_status()
                     case_soup = BeautifulSoup(case_resp.text, "html.parser")
@@ -176,14 +235,15 @@ def main():
                     proof_required = infer_proof_required(case_soup)
                     difficulty = compute_difficulty(claim_required, proof_required)
                     compensation_type = infer_compensation_type(text)
+                    case_status = dir_case_status
 
-                    upsert_lawsuit(cur, title, url, claim_required, proof_required, difficulty, compensation_type)
+                    upsert_lawsuit(cur, title, url, claim_required, proof_required, difficulty, compensation_type, case_status)
                     print(
-                        f"[{i}/{max_items}] saved: {title} | claim_required={claim_required} proof_required={proof_required} difficulty={difficulty} compensation_type={compensation_type}"
+                        f"[{i}/{total}] saved: {title} | claim_required={claim_required} proof_required={proof_required} difficulty={difficulty} compensation_type={compensation_type} case_status={case_status}"
                     )
 
                 except Exception as e:
-                    print(f"[{i}/{max_items}] ERROR for {url}: {e}")
+                    print(f"[{i}/{total}] ERROR for {url}: {e}")
 
                 time.sleep(2.0)  # be polite
 

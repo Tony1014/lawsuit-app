@@ -17,6 +17,8 @@ class LawsuitDetailActivity : AppCompatActivity() {
         val compensationType = intent.getStringExtra("compensation_type") ?: "unknown"
         val claimRequired = intent.getBooleanExtra("claim_required", false)
         val proofRequired = intent.getBooleanExtra("proof_required", false)
+        val caseStatus = intent.getStringExtra("case_status")
+        findViewById<TextView>(R.id.tvDetailCaseStatus).text = caseStatus ?: ""
         val sourceUrl = intent.getStringExtra("source_url") ?: ""
 
         findViewById<TextView>(R.id.titleText).text = title

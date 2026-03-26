@@ -18,6 +18,7 @@ type Lawsuit struct {
 	ProofRequired    bool   `json:"proof_required"`
 	Difficulty       string `json:"difficulty"`
 	CompensationType string `json:"compensation_type"`
+	CaseStatus       string `json:"case_status"`
 	SourceURL        string `json:"source_url"`
 }
 
@@ -62,7 +63,7 @@ func main() {
 	})*/
 	http.HandleFunc("/lawsuits", func(w http.ResponseWriter, r *http.Request) {
 		query := `
-			SELECT id, title, claim_required, proof_required, difficulty, compensation_type, source_url
+			SELECT id, title, claim_required, proof_required, difficulty, compensation_type, case_status, source_url
 			FROM lawsuits
 			WHERE 1=1
 		`
@@ -126,7 +127,7 @@ func main() {
 		lawsuits := []Lawsuit{}
 		for rows.Next() {
 			var l Lawsuit
-			if err := rows.Scan(&l.ID, &l.Title, &l.ClaimRequired, &l.ProofRequired, &l.Difficulty, &l.CompensationType, &l.SourceURL); err != nil {
+			if err := rows.Scan(&l.ID, &l.Title, &l.ClaimRequired, &l.ProofRequired, &l.Difficulty, &l.CompensationType, &l.CaseStatus, &l.SourceURL); err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}
