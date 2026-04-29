@@ -22,3 +22,8 @@ venv/
 
 # Environment
 .env
+
+# IDE / Editor files
+.idea/
+.vscode/
+.kotlin/
