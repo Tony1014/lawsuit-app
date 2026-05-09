@@ -1,5 +1,6 @@
-package com.example.lawsuitapp
+package com.example.lawsuitapp.data.remote
 
+import com.example.lawsuitapp.data.model.Lawsuit
 import retrofit2.http.GET
 import retrofit2.http.Query
 

@@ -1,5 +1,5 @@
-package com.example.lawsuitapp
-import com.google.gson.annotations.SerializedName
+package com.example.lawsuitapp.data.model
+
 data class Lawsuit(
     val id: Int,
     val title: String,
