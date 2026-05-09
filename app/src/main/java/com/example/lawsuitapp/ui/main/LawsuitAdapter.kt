@@ -1,10 +1,12 @@
-package com.example.lawsuitapp
+package com.example.lawsuitapp.ui.main
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.lawsuitapp.R
+import com.example.lawsuitapp.data.model.Lawsuit
 
 class LawsuitAdapter(private val onTitleClick: (Lawsuit) -> Unit) : RecyclerView.Adapter<LawsuitAdapter.VH>() {
 
